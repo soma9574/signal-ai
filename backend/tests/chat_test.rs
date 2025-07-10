@@ -33,8 +33,9 @@ impl SignalClient for DummySignal {
 
 #[tokio::test]
 async fn chat_endpoint_returns_dummy_reply() {
-    // Use in-memory SQLite for testing
-    let database_url = "sqlite::memory:";
+    // Use test PostgreSQL database
+    let database_url = std::env::var("TEST_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:password@localhost:5432/test_db".to_string());
 
     let pool = backend::db::init_pool(database_url)
         .await

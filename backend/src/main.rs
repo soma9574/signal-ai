@@ -41,30 +41,12 @@ async fn main() -> AppResult<()> {
         }
     };
 
-    let mut database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        // Use /tmp for Railway/container deployment - always writable
-        if std::env::var("RAILWAY_ENVIRONMENT").is_ok() || std::env::var("RAILWAY_PROJECT_ID").is_ok() {
-            "sqlite:/tmp/chat_history.db".to_string()
-        } else {
-            "sqlite:chat_history.db".to_string()  // Local development
-        }
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        error!("DATABASE_URL environment variable is required for PostgreSQL");
+        std::process::exit(1);
     });
-
-    // For container deployment, ensure database directory exists or fallback to /tmp
-    let db_path = database_url.replace("sqlite:", "");
-    if let Some(parent) = std::path::Path::new(&db_path).parent() {
-        if !parent.exists() {
-            info!("📁 Creating database directory: {:?}", parent);
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                // If we can't create the directory (container permissions), fallback to /tmp
-                info!("⚠️  Failed to create directory: {} - falling back to /tmp", e);
-                database_url = "sqlite:/tmp/chat_history.db".to_string();
-                info!("📁 Using fallback database path: {}", database_url);
-            }
-        }
-    }
     
-    info!("📁 Database: {}", database_url);
+    info!("📁 Database: PostgreSQL connection configured");
 
     let pool = db::init_pool(&database_url).await.map_err(|e| {
         error!("Failed to connect to database: {}", e);

@@ -19,7 +19,7 @@
 //! 
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let state = AppState {
-//!     pool: backend::db::init_pool("sqlite::memory:").await?,
+//!     pool: backend::db::init_pool("postgresql://user:pass@localhost/db").await?,
 //!     llm: std::sync::Arc::new(backend::llm::AnthropicClient::new("api-key".to_string())),
 //!     signal: std::sync::Arc::new(backend::signal::SignalCliClient::new("+1234567890".to_string())),
 //! };
@@ -41,7 +41,7 @@ use error::{AppError, AppResult};
 use llm::LlmClient;
 use serde::{Deserialize, Serialize};
 use signal::SignalClient;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -51,8 +51,8 @@ use uuid::Uuid;
 /// including database connection pool and service clients.
 #[derive(Clone)]
 pub struct AppState {
-    /// Database connection pool for SQLite
-    pub pool: SqlitePool,
+    /// Database connection pool for PostgreSQL
+pub pool: PgPool,
     /// LLM service client for generating responses
     pub llm: Arc<dyn LlmClient>,
     /// Signal messaging client for sending/receiving messages
@@ -350,7 +350,7 @@ pub async fn health_check(State(state): State<AppState>) -> AppResult<Json<Healt
 /// use std::sync::Arc;
 /// 
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let pool = backend::db::init_pool("sqlite::memory:").await?;
+/// let pool = backend::db::init_pool("postgresql://user:pass@localhost/db").await?;
 /// let llm = Arc::new(backend::llm::AnthropicClient::new("api-key".to_string()));
 /// let signal = Arc::new(backend::signal::SignalCliClient::new("+1234567890".to_string()));
 /// 
