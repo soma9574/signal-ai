@@ -32,7 +32,7 @@ struct AnthropicRequest<'a> {
 #[derive(Deserialize)]
 struct Content {
     #[serde(rename = "type")]
-    content_type: String,
+    _content_type: String, // Prefixed with _ to indicate intentionally unused
     text: String,
 }
 
