@@ -1,0 +1,10 @@
+# Rust
+/target
+backend/target
+
+# Node
+dist/
+node_modules/
+
+# OS
+.DS_Store 
