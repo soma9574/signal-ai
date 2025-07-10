@@ -41,19 +41,30 @@ async fn main() -> AppResult<()> {
         }
     };
 
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:chat_history.db".to_string());
-    info!("📁 Database: {}", database_url);
+    let mut database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        // Use /tmp for Railway/container deployment - always writable
+        if std::env::var("RAILWAY_ENVIRONMENT").is_ok() || std::env::var("RAILWAY_PROJECT_ID").is_ok() {
+            "sqlite:/tmp/chat_history.db".to_string()
+        } else {
+            "sqlite:chat_history.db".to_string()  // Local development
+        }
+    });
 
-    // For container deployment, ensure database directory exists
-    if let Some(parent) = std::path::Path::new(&database_url.replace("sqlite:", "")).parent() {
+    // For container deployment, ensure database directory exists or fallback to /tmp
+    let db_path = database_url.replace("sqlite:", "");
+    if let Some(parent) = std::path::Path::new(&db_path).parent() {
         if !parent.exists() {
             info!("📁 Creating database directory: {:?}", parent);
-            std::fs::create_dir_all(parent).map_err(|e| {
-                backend::error::AppError::config(format!("Failed to create database directory: {e}"))
-            })?;
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                // If we can't create the directory (container permissions), fallback to /tmp
+                info!("⚠️  Failed to create directory: {} - falling back to /tmp", e);
+                database_url = "sqlite:/tmp/chat_history.db".to_string();
+                info!("📁 Using fallback database path: {}", database_url);
+            }
         }
     }
+    
+    info!("📁 Database: {}", database_url);
 
     let pool = db::init_pool(&database_url).await.map_err(|e| {
         error!("Failed to connect to database: {}", e);
