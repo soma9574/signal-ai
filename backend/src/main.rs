@@ -45,6 +45,16 @@ async fn main() -> AppResult<()> {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:chat_history.db".to_string());
     info!("📁 Database: {}", database_url);
 
+    // For container deployment, ensure database directory exists
+    if let Some(parent) = std::path::Path::new(&database_url.replace("sqlite:", "")).parent() {
+        if !parent.exists() {
+            info!("📁 Creating database directory: {:?}", parent);
+            std::fs::create_dir_all(parent).map_err(|e| {
+                backend::error::AppError::config(format!("Failed to create database directory: {e}"))
+            })?;
+        }
+    }
+
     let pool = db::init_pool(&database_url).await.map_err(|e| {
         error!("Failed to connect to database: {}", e);
         backend::error::AppError::config(format!("Database connection failed: {e}"))
