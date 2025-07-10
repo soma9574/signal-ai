@@ -8,8 +8,6 @@ pub async fn init_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
         .connect(database_url)
         .await?;
     // Run migrations at startup
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
     Ok(pool)
-} 
+}

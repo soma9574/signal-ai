@@ -1,5 +1,5 @@
-use backend::signal::{SignalClient, SignalMessage};
 use async_trait::async_trait;
+use backend::signal::{SignalClient, SignalMessage};
 
 struct MockSignalClient {
     should_fail: bool,
@@ -49,4 +49,4 @@ async fn signal_client_receive_messages() {
     let messages = client.receive_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].content, "Test message");
-} 
+}

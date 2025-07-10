@@ -1,10 +1,10 @@
-use backend::{build_app, AppState};
+use async_trait::async_trait;
+use axum::body::Body;
+use axum::http::StatusCode;
+use axum::Router;
 use backend::llm::LlmClient;
 use backend::signal::SignalClient;
-use async_trait::async_trait;
-use axum::http::StatusCode;
-use axum::body::Body;
-use axum::{Router};
+use backend::{build_app, AppState};
 use hyper::Request;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -36,7 +36,7 @@ async fn chat_endpoint_returns_dummy_reply() {
     // Use in-memory SQLite for testing
     let database_url = "sqlite::memory:";
 
-    let pool = backend::db::init_pool(&database_url)
+    let pool = backend::db::init_pool(database_url)
         .await
         .expect("Failed to init pool");
 
@@ -59,7 +59,9 @@ async fn chat_endpoint_returns_dummy_reply() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["reply"], "dummy reply");
-} 
+}

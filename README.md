@@ -2,23 +2,32 @@
 
 This project provides a Signal chatbot that answers in the persona of **Senator Ted Budd** to help Vice Admiral Mitch Bradley prepare for confirmation hearings.
 
+## 🚀 Quick Start
+
+**See [SETUP.md](SETUP.md) for complete step-by-step instructions.**
+
+### TL;DR
+1. Install `signal-cli` and register a phone number
+2. Get an Anthropic API key 
+3. Set environment variables (`ANTHROPIC_API_KEY`, `SIGNAL_PHONE_NUMBER`)
+4. Run `cargo run` in the `backend/` directory
+5. Text the bot and get responses from "Senator Budd"
+
 ## Tech Stack
 
 * **Rust** backend using Axum for HTTP, `sqlx` for SQLite, and a background worker that calls Anthropic **Claude 3 Sonnet** model ("Sonnet 4" tier).
-* **Effect-TS** React front-end.
 * **SQLite** for chat history (single file database).
 * **Signal** transport via `signald`.
 * Deployed on **Railway** via GitHub integration.
 
-## Local Setup
+## Features
 
-```
-# Back-end
-cd backend
-cargo run
-```
-
-Front-end instructions will follow once the React project is scaffolded.
+- 📱 **Signal Integration** - Text the bot directly from any phone
+- 🤖 **Senator Ted Budd Persona** - Responses as the Senator using Claude Sonnet
+- 💾 **Chat History** - All conversations saved to SQLite database  
+- 🔍 **Health Monitoring** - `/health` endpoint shows system status
+- 🪵 **Comprehensive Logging** - Detailed logs for easy debugging
+- ⚡ **Real-time Responses** - 10-second polling for new messages
 
 ## Environment Variables
 
@@ -52,6 +61,20 @@ brew install signal-cli
 signal-cli -a +YOUR_PHONE_NUMBER register
 signal-cli -a +YOUR_PHONE_NUMBER verify CODE_FROM_SMS
 ```
+
+## API Endpoints
+
+- `POST /chat` - Web chat interface (JSON)
+- `POST /signal/send` - Send Signal messages manually
+- `GET /health` - System health check
+
+## Usage for Admiral Bradley
+
+Once set up:
+1. Text the registered Signal number
+2. Ask questions about military affairs, confirmation hearings, etc.
+3. Receive responses from "Senator Budd" within 10 seconds
+4. Review conversation history via logs or database
 
 ## License
 

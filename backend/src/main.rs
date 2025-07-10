@@ -1,19 +1,23 @@
-use backend::{AppState, build_app, db, llm::AnthropicClient, signal::SignalCliClient, worker::start_signal_worker};
+use backend::error::AppResult;
 use backend::signal::SignalClient;
-use std::net::SocketAddr;
-use tracing::{info, error};
+use backend::{
+    build_app, db, llm::AnthropicClient, signal::SignalCliClient, worker::start_signal_worker,
+    AppState,
+};
 use dotenvy::dotenv;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use tracing::{error, info};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> AppResult<()> {
     dotenv().ok();
     tracing_subscriber::fmt::init();
 
     // Startup diagnostics
     info!("🚀 Starting Senator Budd Signal Chatbot");
     info!("📋 Environment check:");
-    
+
     // Check required environment variables
     let api_key = match std::env::var("ANTHROPIC_API_KEY") {
         Ok(key) => {
@@ -25,7 +29,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    
+
     let signal_phone = match std::env::var("SIGNAL_PHONE_NUMBER") {
         Ok(phone) => {
             info!("✅ SIGNAL_PHONE_NUMBER found: {}", phone);
@@ -37,21 +41,28 @@ async fn main() {
         }
     };
 
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:chat_history.db".to_string());
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:chat_history.db".to_string());
     info!("📁 Database: {}", database_url);
-    
-    let pool = db::init_pool(&database_url).await.expect("Failed to connect DB");
+
+    let pool = db::init_pool(&database_url).await.map_err(|e| {
+        error!("Failed to connect to database: {}", e);
+        backend::error::AppError::config(format!("Database connection failed: {e}"))
+    })?;
     info!("✅ Database connected successfully");
-    
+
     let llm_client = Arc::new(AnthropicClient::new(api_key));
     info!("✅ LLM client initialized");
-    
+
     let signal_client = Arc::new(SignalCliClient::new(signal_phone.clone()));
     info!("✅ Signal client initialized");
-    
+
     // Test Signal CLI availability at startup
     info!("🔍 Testing Signal CLI availability...");
-    match signal_client.send_message(&signal_phone, "Startup test - ignore").await {
+    match signal_client
+        .send_message(&signal_phone, "Startup test - ignore")
+        .await
+    {
         Ok(_) => info!("✅ Signal CLI test successful"),
         Err(e) => {
             error!("❌ Signal CLI test failed: {}", e);
@@ -61,12 +72,12 @@ async fn main() {
         }
     }
 
-    let state = AppState { 
-        pool, 
-        llm: llm_client, 
-        signal: signal_client 
+    let state = AppState {
+        pool,
+        llm: llm_client,
+        signal: signal_client,
     };
-    
+
     // Start background Signal worker
     info!("🔄 Starting background Signal worker...");
     let worker_state = state.clone();
@@ -80,6 +91,13 @@ async fn main() {
     info!("🌐 Server listening on {}", addr);
     info!("📱 Ready to receive Signal messages!");
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-} 
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        backend::error::AppError::internal(format!("Failed to bind to address {addr}: {e}"))
+    })?;
+
+    axum::serve(listener, app).await.map_err(|e| {
+        backend::error::AppError::internal(format!("Server error: {e}"))
+    })?;
+
+    Ok(())
+}

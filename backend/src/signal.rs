@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use tokio::process::Command;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalMessage {
@@ -24,7 +24,10 @@ pub struct SignaldClient {
 
 impl SignaldClient {
     pub fn new(socket_path: String, phone_number: String) -> Self {
-        Self { socket_path, phone_number }
+        Self {
+            socket_path,
+            phone_number,
+        }
     }
 }
 
@@ -39,8 +42,12 @@ struct SignaldRequest {
 
 #[derive(Deserialize)]
 struct SignaldResponse {
+    // Note: These fields exist in the API response but aren't currently used
+    // Keeping the struct for future use when we need to parse signald responses
+    #[allow(dead_code)]
     #[serde(rename = "type")]
     response_type: String,
+    #[allow(dead_code)]
     data: Option<serde_json::Value>,
 }
 
@@ -73,7 +80,10 @@ impl SignalClient for SignaldClient {
 
         let output = cmd.wait_with_output().await?;
         if !output.status.success() {
-            anyhow::bail!("signald command failed: {}", String::from_utf8_lossy(&output.stderr));
+            anyhow::bail!(
+                "signald command failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         let response_text = String::from_utf8(output.stdout)?;
@@ -105,22 +115,26 @@ impl SignalCliClient {
 impl SignalClient for SignalCliClient {
     async fn send_message(&self, to: &str, content: &str) -> anyhow::Result<()> {
         info!("🔄 Attempting to send Signal message via signal-cli");
-        debug!("Signal CLI send - To: {}, Content length: {} chars", to, content.len());
+        debug!(
+            "Signal CLI send - To: {}, Content length: {} chars",
+            to,
+            content.len()
+        );
         debug!("Using phone number: {}", self.phone_number);
 
         // Check if signal-cli is available
-        let version_check = Command::new("signal-cli")
-            .arg("--version")
-            .output()
-            .await;
-        
+        let version_check = Command::new("signal-cli").arg("--version").output().await;
+
         match version_check {
             Ok(output) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout);
                 debug!("✅ signal-cli found, version: {}", version.trim());
             }
             Ok(output) => {
-                error!("❌ signal-cli command failed with status: {}", output.status);
+                error!(
+                    "❌ signal-cli command failed with status: {}",
+                    output.status
+                );
                 error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
                 anyhow::bail!("signal-cli version check failed");
             }
@@ -137,7 +151,7 @@ impl SignalClient for SignalCliClient {
             .arg(to)
             .arg("-m")
             .arg(content)
-            .arg("--verbose")  // Add verbose flag for better debugging
+            .arg("--verbose") // Add verbose flag for better debugging
             .output()
             .await?;
 
@@ -145,7 +159,10 @@ impl SignalClient for SignalCliClient {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
             error!("❌ signal-cli send failed with status: {}", output.status);
-            error!("📤 Command: signal-cli -a {} send {} -m [message]", self.phone_number, to);
+            error!(
+                "📤 Command: signal-cli -a {} send {} -m [message]",
+                self.phone_number, to
+            );
             error!("📋 stderr: {}", stderr);
             error!("📋 stdout: {}", stdout);
             anyhow::bail!("signal-cli send failed: {}", stderr);
@@ -169,14 +186,17 @@ impl SignalClient for SignalCliClient {
             .arg("receive")
             .arg("--json")
             .arg("--timeout")
-            .arg("5")  // 5 second timeout to avoid hanging
+            .arg("5") // 5 second timeout to avoid hanging
             .output()
             .await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             warn!("⚠️  signal-cli receive failed: {}", stderr);
-            debug!("📤 Command: signal-cli -a {} receive --json --timeout 5", self.phone_number);
+            debug!(
+                "📤 Command: signal-cli -a {} receive --json --timeout 5",
+                self.phone_number
+            );
             debug!("📋 Exit status: {}", output.status);
             return Ok(vec![]);
         }
@@ -196,7 +216,10 @@ impl SignalClient for SignalCliClient {
         for line in lines {
             debug!("🔍 Parsing line: {}", line);
             if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
-                if let (Some(envelope), Some(source)) = (msg.get("envelope"), msg.get("envelope").and_then(|e| e.get("source"))) {
+                if let (Some(envelope), Some(source)) = (
+                    msg.get("envelope"),
+                    msg.get("envelope").and_then(|e| e.get("source")),
+                ) {
                     if let Some(data_message) = envelope.get("dataMessage") {
                         if let Some(message_text) = data_message.get("message") {
                             let from = source.as_str().unwrap_or("unknown").to_string();
@@ -222,4 +245,4 @@ impl SignalClient for SignalCliClient {
         }
         Ok(messages)
     }
-} 
+}

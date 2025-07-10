@@ -26,6 +26,8 @@ async-trait = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde", "clock" ] }
 anyhow = "1.0"
+thiserror = "1.0"
+validator = { version = "0.18", features = ["derive"] }
 tower = { version = "0.4", features = ["util"] }
 
 [dev-dependencies]

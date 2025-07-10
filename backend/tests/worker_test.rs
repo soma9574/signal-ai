@@ -1,9 +1,12 @@
-use backend::worker::start_signal_worker;
-use backend::{AppState, llm::LlmClient, signal::{SignalClient, SignalMessage}};
 use async_trait::async_trait;
+use backend::worker::start_signal_worker;
+use backend::{
+    llm::LlmClient,
+    signal::{SignalClient, SignalMessage},
+    AppState,
+};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::time::timeout;
 
 struct MockSignalWithMessages {
     messages: Arc<Mutex<Vec<SignalMessage>>>,
@@ -48,10 +51,10 @@ impl LlmClient for MockLlm {
 
 #[tokio::test]
 async fn worker_processes_signal_messages() {
-    // Use in-memory SQLite for testing  
+    // Use in-memory SQLite for testing
     let database_url = "sqlite::memory:";
 
-    let pool = backend::db::init_pool(&database_url)
+    let pool = backend::db::init_pool(database_url)
         .await
         .expect("Failed to init pool");
 
@@ -81,6 +84,9 @@ async fn worker_processes_signal_messages() {
 
     // Check that a response was sent
     let sent = signal_client.get_sent_messages();
-    assert!(!sent.is_empty(), "Worker should have sent at least one response");
+    assert!(
+        !sent.is_empty(),
+        "Worker should have sent at least one response"
+    );
     assert_eq!(sent[0], "Mock Senator Budd response");
-} 
+}

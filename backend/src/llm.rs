@@ -48,4 +48,4 @@ impl LlmClient for AnthropicClient {
         let data: AnthropicResponse = resp.json().await?;
         Ok(data.completion)
     }
-} 
+}
