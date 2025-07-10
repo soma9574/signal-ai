@@ -1,20 +1,23 @@
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, error, warn};
+use tracing::{info, error, warn, debug};
 use crate::AppState;
 
 pub async fn start_signal_worker(state: AppState) {
-    info!("Starting Signal message worker");
+    info!("🔄 Signal worker started - polling every 10 seconds");
     
     loop {
         match process_signal_messages(&state).await {
             Ok(processed) => {
                 if processed > 0 {
-                    info!("Processed {} Signal messages", processed);
+                    info!("✅ Processed {} Signal messages", processed);
+                } else {
+                    debug!("📭 No new messages to process");
                 }
             }
             Err(e) => {
-                error!("Error processing Signal messages: {}", e);
+                error!("❌ Error processing Signal messages: {}", e);
+                error!("🔄 Will retry in 10 seconds...");
             }
         }
         
@@ -24,11 +27,12 @@ pub async fn start_signal_worker(state: AppState) {
 }
 
 async fn process_signal_messages(state: &AppState) -> anyhow::Result<usize> {
+    debug!("🔍 Checking for new Signal messages...");
     let messages = state.signal.receive_messages().await?;
     let mut processed = 0;
     
     for message in messages {
-        info!("Processing Signal message from {}: {}", message.from, message.content);
+        info!("📨 Processing Signal message from {}: {}", message.from, message.content);
         
         // Create Senator Budd persona prompt
         let senator_prompt = format!(
@@ -39,23 +43,30 @@ async fn process_signal_messages(state: &AppState) -> anyhow::Result<usize> {
             message.content
         );
         
+        debug!("🤖 Generating LLM response...");
         match state.llm.complete(&senator_prompt).await {
             Ok(response) => {
+                info!("✅ Generated response: {}", response);
+                
                 // Store the conversation in DB
+                debug!("💾 Storing conversation in database...");
                 if let Err(e) = store_signal_conversation(state, &message, &response).await {
-                    warn!("Failed to store Signal conversation: {}", e);
+                    warn!("⚠️  Failed to store Signal conversation: {}", e);
+                } else {
+                    debug!("✅ Conversation stored successfully");
                 }
                 
                 // Send response back via Signal
+                debug!("📤 Sending response via Signal...");
                 if let Err(e) = state.signal.send_message(&message.from, &response).await {
-                    error!("Failed to send Signal response to {}: {}", message.from, e);
+                    error!("❌ Failed to send Signal response to {}: {}", message.from, e);
                 } else {
-                    info!("Sent Signal response to {}", message.from);
+                    info!("✅ Sent Signal response to {}", message.from);
                     processed += 1;
                 }
             }
             Err(e) => {
-                error!("Failed to generate LLM response: {}", e);
+                error!("❌ Failed to generate LLM response: {}", e);
             }
         }
     }

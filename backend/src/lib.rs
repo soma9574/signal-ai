@@ -6,6 +6,7 @@ pub mod worker;
 use llm::{AnthropicClient, LlmClient};
 use signal::{SignalClient, SignalCliClient};
 use axum::{extract::State, routing::post, Router, Json};
+use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::sync::Arc;
@@ -32,6 +33,14 @@ pub struct ChatResponse {
 pub struct SendSignalRequest {
     pub to: String,
     pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub status: String,
+    pub signal_cli_available: bool,
+    pub database_connected: bool,
+    pub phone_number: String,
 }
 
 #[derive(Serialize)]
@@ -76,9 +85,41 @@ pub async fn send_signal_message(State(state): State<AppState>, Json(payload): J
     }
 }
 
+pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
+    // Test signal-cli availability
+    let signal_available = match tokio::process::Command::new("signal-cli")
+        .arg("--version")
+        .output()
+        .await
+    {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    };
+    
+    // Test database connection
+    let db_connected = sqlx::query("SELECT 1").fetch_optional(&state.pool).await.is_ok();
+    
+    // Get phone number from signal client (we'll need to add a getter)
+    let phone_number = std::env::var("SIGNAL_PHONE_NUMBER").unwrap_or("not configured".to_string());
+    
+    let overall_status = if signal_available && db_connected {
+        "healthy"
+    } else {
+        "degraded"
+    };
+    
+    Json(HealthResponse {
+        status: overall_status.to_string(),
+        signal_cli_available: signal_available,
+        database_connected: db_connected,
+        phone_number,
+    })
+}
+
 pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/chat", post(chat_handler))
         .route("/signal/send", post(send_signal_message))
+        .route("/health", get(health_check))
         .with_state(state)
 } 

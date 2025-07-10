@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use tokio::process::Command;
-use tracing::{info, warn};
+use tracing::{info, warn, error, debug};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalMessage {
@@ -104,7 +104,31 @@ impl SignalCliClient {
 #[async_trait]
 impl SignalClient for SignalCliClient {
     async fn send_message(&self, to: &str, content: &str) -> anyhow::Result<()> {
-        info!("Sending Signal message via signal-cli to {}: {}", to, content);
+        info!("🔄 Attempting to send Signal message via signal-cli");
+        debug!("Signal CLI send - To: {}, Content length: {} chars", to, content.len());
+        debug!("Using phone number: {}", self.phone_number);
+
+        // Check if signal-cli is available
+        let version_check = Command::new("signal-cli")
+            .arg("--version")
+            .output()
+            .await;
+        
+        match version_check {
+            Ok(output) if output.status.success() => {
+                let version = String::from_utf8_lossy(&output.stdout);
+                debug!("✅ signal-cli found, version: {}", version.trim());
+            }
+            Ok(output) => {
+                error!("❌ signal-cli command failed with status: {}", output.status);
+                error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+                anyhow::bail!("signal-cli version check failed");
+            }
+            Err(e) => {
+                error!("❌ signal-cli not found or not executable: {}", e);
+                anyhow::bail!("signal-cli not available: {}", e);
+            }
+        }
 
         let output = Command::new("signal-cli")
             .arg("-a")
@@ -113,59 +137,89 @@ impl SignalClient for SignalCliClient {
             .arg(to)
             .arg("-m")
             .arg(content)
+            .arg("--verbose")  // Add verbose flag for better debugging
             .output()
             .await?;
 
         if !output.status.success() {
-            anyhow::bail!("signal-cli send failed: {}", String::from_utf8_lossy(&output.stderr));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            error!("❌ signal-cli send failed with status: {}", output.status);
+            error!("📤 Command: signal-cli -a {} send {} -m [message]", self.phone_number, to);
+            error!("📋 stderr: {}", stderr);
+            error!("📋 stdout: {}", stdout);
+            anyhow::bail!("signal-cli send failed: {}", stderr);
         }
 
-        info!("signal-cli send successful");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        info!("✅ Signal message sent successfully to {}", to);
+        if !stdout.trim().is_empty() {
+            debug!("📤 signal-cli output: {}", stdout);
+        }
         Ok(())
     }
 
     async fn receive_messages(&self) -> anyhow::Result<Vec<SignalMessage>> {
-        info!("Receiving messages via signal-cli");
+        debug!("🔄 Polling for Signal messages via signal-cli");
+        debug!("Using phone number: {}", self.phone_number);
 
         let output = Command::new("signal-cli")
             .arg("-a")
             .arg(&self.phone_number)
             .arg("receive")
             .arg("--json")
+            .arg("--timeout")
+            .arg("5")  // 5 second timeout to avoid hanging
             .output()
             .await?;
 
         if !output.status.success() {
-            warn!("signal-cli receive failed: {}", String::from_utf8_lossy(&output.stderr));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!("⚠️  signal-cli receive failed: {}", stderr);
+            debug!("📤 Command: signal-cli -a {} receive --json --timeout 5", self.phone_number);
+            debug!("📋 Exit status: {}", output.status);
             return Ok(vec![]);
         }
 
         let response_text = String::from_utf8(output.stdout)?;
         if response_text.trim().is_empty() {
+            debug!("📭 No new Signal messages");
             return Ok(vec![]);
         }
+
+        debug!("📬 Raw signal-cli receive output: {}", response_text);
 
         // Parse signal-cli JSON output (simplified - real parsing would be more robust)
         let lines: Vec<&str> = response_text.lines().collect();
         let mut messages = Vec::new();
 
         for line in lines {
+            debug!("🔍 Parsing line: {}", line);
             if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
                 if let (Some(envelope), Some(source)) = (msg.get("envelope"), msg.get("envelope").and_then(|e| e.get("source"))) {
                     if let Some(data_message) = envelope.get("dataMessage") {
                         if let Some(message_text) = data_message.get("message") {
+                            let from = source.as_str().unwrap_or("unknown").to_string();
+                            let content = message_text.as_str().unwrap_or("").to_string();
+                            info!("📨 Received Signal message from {}: {}", from, content);
                             messages.push(SignalMessage {
-                                from: source.as_str().unwrap_or("unknown").to_string(),
+                                from,
                                 to: self.phone_number.clone(),
-                                content: message_text.as_str().unwrap_or("").to_string(),
+                                content,
                             });
                         }
                     }
                 }
+            } else {
+                debug!("⚠️  Could not parse JSON line: {}", line);
             }
         }
 
-        info!("Received {} messages", messages.len());
+        if messages.is_empty() {
+            debug!("📭 No parseable messages found");
+        } else {
+            info!("📬 Successfully parsed {} Signal messages", messages.len());
+        }
         Ok(messages)
     }
 } 
