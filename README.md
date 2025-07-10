@@ -26,7 +26,32 @@ Front-end instructions will follow once the React project is scaffolded.
 | -------- | ----------- |
 | `ANTHROPIC_API_KEY` | API key for Claude Sonnet |
 | `DATABASE_URL` | Postgres connection string |
-| `SIGNAL_SERVICE_URL` | URL of signald instance |
+| `SIGNAL_PHONE_NUMBER` | Phone number registered with Signal |
+
+## Signal Integration
+
+The backend includes two Signal client implementations:
+
+1. **SignalCliClient** (default): Uses `signal-cli` command-line tool
+2. **SignaldClient**: Uses `signald` daemon via Unix socket
+
+The backend automatically:
+- Polls for incoming Signal messages every 10 seconds
+- Responds as Senator Ted Budd using Claude Sonnet
+- Stores all conversations in PostgreSQL
+- Provides REST endpoints for manual message sending
+
+### Prerequisites
+
+Install `signal-cli`:
+```bash
+# On macOS
+brew install signal-cli
+
+# Register your phone number (one-time setup)
+signal-cli -a +YOUR_PHONE_NUMBER register
+signal-cli -a +YOUR_PHONE_NUMBER verify CODE_FROM_SMS
+```
 
 ## License
 

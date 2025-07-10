@@ -1,69 +1,8 @@
-use axum::{extract::State, routing::post, Router, Json};
-use serde::{Deserialize, Serialize};
+use backend::{AppState, build_app, db, llm::AnthropicClient, signal::SignalCliClient, worker::start_signal_worker};
 use std::net::SocketAddr;
 use tracing::info;
 use dotenvy::dotenv;
-use sqlx::PgPool;
 use std::sync::Arc;
-
-pub mod db;
-pub mod llm;
-// mod models; // Removed as per edit hint
-use llm::{AnthropicClient, LlmClient};
-// use models::Message; // Removed as per edit hint
-
-#[derive(Deserialize)]
-struct ChatRequest {
-    message: String,
-}
-
-#[derive(Serialize)]
-struct ChatResponse {
-    reply: String,
-}
-
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: PgPool,
-    pub llm: Arc<dyn LlmClient>,
-}
-
-async fn chat_handler(State(state): State<AppState>, Json(payload): Json<ChatRequest>) -> Json<ChatResponse> {
-    use uuid::Uuid;
-    // chrono not currently used directly here
-    // use chrono::Utc;
-
-    let mut tx = state.pool.begin().await.unwrap();
-
-    let user_msg_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO messages (id, role, content) VALUES ($1, $2, $3)")
-        .bind(user_msg_id)
-        .bind("user")
-        .bind(&payload.message)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-
-    let prompt = format!("Respond as Senator Ted Budd to: {}", payload.message);
-    let completion = state.llm.complete(&prompt).await.unwrap_or_else(|_| "Sorry, unable to respond now".into());
-
-    let assistant_msg_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO messages (id, role, content) VALUES ($1, $2, $3)")
-        .bind(assistant_msg_id)
-        .bind("assistant")
-        .bind(&completion)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-
-    tx.commit().await.unwrap();
-
-    Json(ChatResponse { reply: completion })
-}
-
-pub fn build_app(state: AppState) -> Router {
-    Router::new().route("/chat", post(chat_handler)).with_state(state)
-}
 
 #[tokio::main]
 async fn main() {
@@ -75,14 +14,26 @@ async fn main() {
     let api_key = std::env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY must be set");
     let llm_client = Arc::new(AnthropicClient::new(api_key));
 
-    let state = AppState { pool, llm: llm_client };
+    let signal_phone = std::env::var("SIGNAL_PHONE_NUMBER").expect("SIGNAL_PHONE_NUMBER must be set");
+    let signal_client = Arc::new(SignalCliClient::new(signal_phone));
+
+    let state = AppState { 
+        pool, 
+        llm: llm_client, 
+        signal: signal_client 
+    };
+    
+    // Start background Signal worker
+    let worker_state = state.clone();
+    tokio::spawn(async move {
+        start_signal_worker(worker_state).await;
+    });
+
     let app = build_app(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     info!("Listening on {}", addr);
 
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 } 
