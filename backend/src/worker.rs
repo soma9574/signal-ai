@@ -75,7 +75,7 @@ async fn store_signal_conversation(
     // Store incoming message
     let user_msg_id = Uuid::new_v4();
     sqlx::query("INSERT INTO messages (id, role, content) VALUES ($1, $2, $3)")
-        .bind(user_msg_id)
+        .bind(user_msg_id.to_string())
         .bind("user")
         .bind(&incoming.content)
         .execute(&mut *tx)
@@ -84,7 +84,7 @@ async fn store_signal_conversation(
     // Store response
     let assistant_msg_id = Uuid::new_v4();
     sqlx::query("INSERT INTO messages (id, role, content) VALUES ($1, $2, $3)")
-        .bind(assistant_msg_id)
+        .bind(assistant_msg_id.to_string())
         .bind("assistant")
         .bind(response)
         .execute(&mut *tx)

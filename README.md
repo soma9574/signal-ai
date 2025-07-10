@@ -4,9 +4,9 @@ This project provides a Signal chatbot that answers in the persona of **Senator 
 
 ## Tech Stack
 
-* **Rust** backend using Axum for HTTP, `sqlx` for Postgres, and a background worker that calls Anthropic **Claude 3 Sonnet** model ("Sonnet 4" tier).
+* **Rust** backend using Axum for HTTP, `sqlx` for SQLite, and a background worker that calls Anthropic **Claude 3 Sonnet** model ("Sonnet 4" tier).
 * **Effect-TS** React front-end.
-* **PostgreSQL** for chat history.
+* **SQLite** for chat history (single file database).
 * **Signal** transport via `signald`.
 * Deployed on **Railway** via GitHub integration.
 
@@ -25,7 +25,7 @@ Front-end instructions will follow once the React project is scaffolded.
 | Variable | Description |
 | -------- | ----------- |
 | `ANTHROPIC_API_KEY` | API key for Claude Sonnet |
-| `DATABASE_URL` | Postgres connection string |
+| `DATABASE_URL` | SQLite file path (optional, defaults to `sqlite:chat_history.db`) |
 | `SIGNAL_PHONE_NUMBER` | Phone number registered with Signal |
 
 ## Signal Integration
@@ -38,7 +38,7 @@ The backend includes two Signal client implementations:
 The backend automatically:
 - Polls for incoming Signal messages every 10 seconds
 - Responds as Senator Ted Budd using Claude Sonnet
-- Stores all conversations in PostgreSQL
+- Stores all conversations in SQLite
 - Provides REST endpoints for manual message sending
 
 ### Prerequisites

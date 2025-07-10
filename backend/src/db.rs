@@ -1,8 +1,8 @@
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::time::Duration;
 
-pub async fn init_pool(database_url: &str) -> anyhow::Result<PgPool> {
-    let pool = PgPoolOptions::new()
+pub async fn init_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
+    let pool = SqlitePoolOptions::new()
         .acquire_timeout(Duration::from_secs(5))
         .max_connections(5)
         .connect(database_url)

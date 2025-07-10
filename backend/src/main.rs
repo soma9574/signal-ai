@@ -9,7 +9,7 @@ async fn main() {
     dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:chat_history.db".to_string());
     let pool = db::init_pool(&database_url).await.expect("Failed to connect DB");
     let api_key = std::env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY must be set");
     let llm_client = Arc::new(AnthropicClient::new(api_key));

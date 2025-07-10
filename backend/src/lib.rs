@@ -7,13 +7,13 @@ use llm::{AnthropicClient, LlmClient};
 use signal::{SignalClient, SignalCliClient};
 use axum::{extract::State, routing::post, Router, Json};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: PgPool,
+    pub pool: SqlitePool,
     pub llm: Arc<dyn LlmClient>,
     pub signal: Arc<dyn SignalClient>,
 }
@@ -45,7 +45,7 @@ pub async fn chat_handler(State(state): State<AppState>, Json(payload): Json<Cha
 
     let user_msg_id = Uuid::new_v4();
     sqlx::query("INSERT INTO messages (id, role, content) VALUES ($1, $2, $3)")
-        .bind(user_msg_id)
+        .bind(user_msg_id.to_string())
         .bind("user")
         .bind(&payload.message)
         .execute(&mut *tx)
@@ -57,7 +57,7 @@ pub async fn chat_handler(State(state): State<AppState>, Json(payload): Json<Cha
 
     let assistant_msg_id = Uuid::new_v4();
     sqlx::query("INSERT INTO messages (id, role, content) VALUES ($1, $2, $3)")
-        .bind(assistant_msg_id)
+        .bind(assistant_msg_id.to_string())
         .bind("assistant")
         .bind(&completion)
         .execute(&mut *tx)
