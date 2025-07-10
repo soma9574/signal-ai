@@ -17,35 +17,64 @@ impl AnthropicClient {
 }
 
 #[derive(Serialize)]
+struct Message<'a> {
+    role: &'static str,
+    content: &'a str,
+}
+
+#[derive(Serialize)]
 struct AnthropicRequest<'a> {
     model: &'static str,
-    prompt: &'a str,
     max_tokens: u32,
+    messages: Vec<Message<'a>>,
+}
+
+#[derive(Deserialize)]
+struct Content {
+    #[serde(rename = "type")]
+    content_type: String,
+    text: String,
 }
 
 #[derive(Deserialize)]
 struct AnthropicResponse {
-    completion: String,
+    content: Vec<Content>,
 }
 
 #[async_trait]
 impl LlmClient for AnthropicClient {
     async fn complete(&self, prompt: &str) -> anyhow::Result<String> {
         let req_body = AnthropicRequest {
-            model: "claude-3-sonnet-20240229", // Sonnet 4 (Claude 3 Sonnet) id
-            prompt,
-            max_tokens: 512,
+            model: "claude-sonnet-4-20250514", // Claude Sonnet 4 (latest)
+            max_tokens: 1024,
+            messages: vec![Message {
+                role: "user",
+                content: prompt,
+            }],
         };
+        
         let resp = reqwest::Client::new()
-            .post("https://api.anthropic.com/v1/complete")
+            .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
             .json(&req_body)
             .send()
             .await?;
+            
         if !resp.status().is_success() {
-            anyhow::bail!("Anthropic API error: {}", resp.status());
+            let status = resp.status();
+            let error_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            anyhow::bail!("Anthropic API error {}: {}", status, error_text);
         }
+        
         let data: AnthropicResponse = resp.json().await?;
-        Ok(data.completion)
+        
+        // Extract the text from the first content item
+        if let Some(content) = data.content.first() {
+            Ok(content.text.clone())
+        } else {
+            anyhow::bail!("No content returned from Anthropic API")
+        }
     }
 }
