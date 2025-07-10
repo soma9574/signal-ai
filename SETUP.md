@@ -78,13 +78,14 @@ Create a `.env` file in the project root:
 cat > .env << EOF
 ANTHROPIC_API_KEY=sk-ant-your-actual-api-key-here
 SIGNAL_PHONE_NUMBER=+1234567890
-DATABASE_URL=sqlite:chat_history.db
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 EOF
 ```
 
 **Replace the values with:**
 - `ANTHROPIC_API_KEY`: Your actual Anthropic API key
 - `SIGNAL_PHONE_NUMBER`: The phone number you registered with Signal
+- `DATABASE_URL`: Your PostgreSQL connection string (format: `postgresql://user:password@host:port/dbname`)
 
 ## Step 6: Install Rust and Run the Bot
 
@@ -111,7 +112,7 @@ cargo run
 📋 Environment check:
 ✅ ANTHROPIC_API_KEY found (length: 108)
 ✅ SIGNAL_PHONE_NUMBER found: +1234567890
-📁 Database: sqlite:chat_history.db
+📁 Database: PostgreSQL connection configured
 ✅ Database connected successfully
 ✅ LLM client initialized
 ✅ Signal client initialized
@@ -207,8 +208,9 @@ signal-cli -a +1234567890 trust -a
 - Ensure you're running from the `backend/` directory
 
 **Error: `Database connection failed`**
-- Ensure SQLite is available (usually built-in)
-- Check file permissions in the project directory
+- Ensure PostgreSQL is installed and running
+- Check your `DATABASE_URL` connection string in the `.env` file
+- Verify database access permissions and that the database exists
 
 **No responses to messages:**
 1. Check bot logs for error messages
@@ -233,6 +235,9 @@ For Railway deployment:
 3. Set environment variables in Railway dashboard:
    - `ANTHROPIC_API_KEY`
    - `SIGNAL_PHONE_NUMBER`
-4. Install signal-cli in Railway environment (may require Docker)
+   - `DATABASE_URL` (use Railway's PostgreSQL service connection string)
+4. Use the provided `Dockerfile` to build the container with `signal-cli` pre-installed:
+   - In Railway, configure your service to use a custom Dockerfile by selecting 'Dockerfile' as the build type and specifying the path to `Dockerfile` in the project root.
+   - Ensure the build context is set to the root of your repository.
 
-The SQLite database will persist with your Railway deployment automatically. 
+The PostgreSQL database will persist with your Railway deployment automatically. 
